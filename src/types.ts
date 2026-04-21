@@ -24,7 +24,7 @@ export interface EnemyType {
 export interface PowerUpType {
   name: string;
   color: string;
-  duration: number;
+  duration?: number;
 }
 
 export interface ParticleData {
@@ -43,8 +43,19 @@ export interface GameStats {
   time: number;
 }
 
-export interface WeaponState {
-  type: 'single' | 'double' | 'triple' | 'rapid';
-  timer: number;
-  fireRate: number;
+export type WeaponKind = 'firepower' | 'spread' | 'rapid' | 'pierce';
+
+export interface WeaponUpgradeState {
+  kind: WeaponKind;
+  level: number; // 1-3
+}
+
+export interface WeaponConfig {
+  name: string;
+  color: string;
+  icon: string;
+  maxLevel: number;
+  fireRateMultiplier(level: number): number;
+  bulletCount(level: number): number;
+  piercing(level: number): number;
 }

@@ -24,9 +24,8 @@ export class CollisionSystem {
       if (!bullet.active) continue;
       for (const enemy of enemies) {
         if (!enemy.active) continue;
-        if (bullet.isCollidingWith(enemy)) {
+        if (bullet.canHit(enemy) && bullet.isCollidingWith(enemy)) {
           bulletHits.push({ bullet, enemy });
-          break;
         }
       }
     }

@@ -14,9 +14,11 @@ import { ObjectPool } from '../systems/ObjectPool';
 import { Vector2 } from '../utils/Vector2';
 import {
   GAME_WIDTH, GAME_HEIGHT, FIXED_DT, COLORS,
-  PLAYER_FIRE_RATE, POWERUP_TYPES, ENEMY_TYPES,
+  POWERUP_TYPES, ENEMY_TYPES,
+  WEAPON_CONFIGS, POWERUP_WEAPON_MAP,
+  WEAPON_FULL_BONUS_SCORE,
 } from '../utils/constants';
-import type { GameStats } from '../types';
+import type { GameStats, WeaponKind } from '../types';
 
 export class Game {
   canvas: Canvas;
@@ -51,6 +53,9 @@ export class Game {
     this.particleSystem = new ParticleSystem();
     this.waveSystem = new WaveSystem((type, wave) => this.spawnEnemy(type, wave));
     this.collisionSystem = new CollisionSystem();
+
+    // ZX-9: wire particle systems into entities
+    this.player.setParticleSystem(this.particleSystem);
 
     this.bulletPool = new ObjectPool<Bullet>(
       () => new Bullet(),
@@ -120,9 +125,10 @@ export class Game {
     this.enemies.push(enemy);
   }
 
-  private spawnBullet(pos: Vector2, direction: Vector2, damage: number) {
+  private spawnBullet(pos: Vector2, direction: Vector2, damage: number, pierceCount: number, color: string = '#fbbf24') {
     const bullet = this.bulletPool.acquire();
-    bullet.spawn(pos, direction, damage);
+    bullet.setParticleSystem(this.particleSystem);
+    bullet.spawn(pos, direction, damage, pierceCount, color);
     this.bullets.push(bullet);
     this.audio.playShoot();
     this.particleSystem.spawnTrail(pos, direction.mul(-1), 1);
@@ -163,10 +169,12 @@ export class Game {
     this.player.update(dt);
 
     if (this.player.canShoot()) {
-      const dirs = this.player.getFirePattern();
+      const patterns = this.player.getFirePattern();
       const spawnPos = this.player.position.clone();
-      for (const dir of dirs) {
-        this.spawnBullet(spawnPos, dir, 10);
+      const muzzleOffset = Vector2.fromAngle(this.player.angle, 22);
+      const muzzlePos = spawnPos.add(muzzleOffset);
+      for (const p of patterns) {
+        this.spawnBullet(muzzlePos, p.dir, 10, p.pierce);
       }
     }
 
@@ -207,7 +215,7 @@ export class Game {
     );
 
     for (const { bullet, enemy } of bulletHits) {
-      bullet.active = false;
+      bullet.registerHit(enemy);
       if (enemy.takeDamage(bullet.damage)) {
         enemy.active = false;
         this.stats.score += enemy.score;
@@ -230,7 +238,7 @@ export class Game {
     for (const enemy of playerHits) {
       if (this.player.takeDamage(enemy.damage)) {
         this.audio.playHit();
-        this.particleSystem.spawnExplosion(this.player.position, 8, '#3b82f6');
+        this.particleSystem.spawnExplosion(this.player.position, 12, '#ef4444');
       }
       enemy.active = false;
       this.particleSystem.spawnExplosion(enemy.position, 10);
@@ -249,22 +257,17 @@ export class Game {
   }
 
   private applyPowerUp(typeName: string) {
-    const type = POWERUP_TYPES[typeName as keyof typeof POWERUP_TYPES];
-    if (!type) return;
+    if (typeName === 'SHIELD' || typeName === 'shield') {
+      this.player.shieldTimer = POWERUP_TYPES.SHIELD.duration;
+      return;
+    }
 
-    switch (typeName) {
-      case 'double_shot':
-        this.player.weapon = { type: 'double', timer: type.duration, fireRate: PLAYER_FIRE_RATE };
-        break;
-      case 'triple_shot':
-        this.player.weapon = { type: 'triple', timer: type.duration, fireRate: PLAYER_FIRE_RATE };
-        break;
-      case 'rapid_fire':
-        this.player.weapon = { type: 'rapid', timer: type.duration, fireRate: PLAYER_FIRE_RATE * 0.4 };
-        break;
-      case 'shield':
-        this.player.shieldTimer = type.duration;
-        break;
+    const kind = POWERUP_WEAPON_MAP[typeName.toLowerCase()] as WeaponKind;
+    if (!kind || !WEAPON_CONFIGS[kind]) return;
+
+    const result = this.player.upgradeWeapon(kind);
+    if (!result.upgraded && result.maxed) {
+      this.stats.score += WEAPON_FULL_BONUS_SCORE;
     }
   }
 
@@ -379,24 +382,25 @@ export class Game {
     ctx.lineWidth = 1;
     ctx.strokeRect(barX, barY, barW, barH);
 
-    if (this.player.weapon.type !== 'single') {
-      ctx.textAlign = 'right';
-      ctx.fillStyle = POWERUP_TYPES[this.player.weapon.type.toUpperCase() as keyof typeof POWERUP_TYPES]?.color || '#fff';
+    // Weapon HUD: bottom-right icon + level
+    const config = WEAPON_CONFIGS[this.player.weaponKind];
+    ctx.textAlign = 'right';
+    ctx.fillStyle = config.color;
+    ctx.font = 'bold 18px monospace';
+    ctx.fillText(
+      `${config.icon}Lv.${this.player.weaponLevel}`,
+      GAME_WIDTH - 20, GAME_HEIGHT - 20
+    );
+
+    // Shield indicator
+    if (this.player.shieldTimer > 0) {
+      ctx.fillStyle = POWERUP_TYPES.SHIELD.color;
       ctx.font = 'bold 16px monospace';
-      const secsLeft = Math.ceil(this.player.weapon.timer / 1000);
-      ctx.fillText(`${this.getWeaponName()} (${secsLeft}s)`, GAME_WIDTH - 20, 80);
+      const secsLeft = Math.ceil(this.player.shieldTimer / 1000);
+      ctx.fillText(`🛡️ ${secsLeft}s`, GAME_WIDTH - 20, GAME_HEIGHT - 45);
     }
 
     ctx.restore();
-  }
-
-  private getWeaponName(): string {
-    const names: Record<string, string> = {
-      double: '双发',
-      triple: '三发',
-      rapid: '速射',
-    };
-    return names[this.player.weapon.type] || '';
   }
 
   private renderMenu() {
