@@ -160,6 +160,23 @@ export class Player extends GameEntity {
       ctx.beginPath();
       ctx.arc(-4, 0, 6, 0, Math.PI * 2);
       ctx.fill();
+
+      // Hit flash overlay even during invincibility blink
+      if (this.hitFlashTimer > 0) {
+        const alpha = (this.hitFlashTimer / Player.HIT_FLASH_DURATION) * 0.9;
+        ctx.globalAlpha = alpha;
+        ctx.shadowBlur = 30;
+        ctx.shadowColor = '#ff0000';
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.moveTo(20, 0);
+        ctx.lineTo(-12, 12);
+        ctx.lineTo(-8, 0);
+        ctx.lineTo(-12, -12);
+        ctx.closePath();
+        ctx.fill();
+      }
+
       ctx.restore();
       return;
     }
