@@ -30,19 +30,16 @@ export class WaveSystem {
   update(dt: number) {
     if (!this.spawning) return;
 
-    if (this.waveComplete) {
-      this.waveTimer += dt;
-      if (this.waveTimer >= WAVE_CONFIG.waveDelay) {
-        this.startWave();
-      }
+    // 每20秒自动开始新一波，不管上一波是否杀完
+    this.waveTimer += dt;
+    if (this.waveTimer >= WAVE_CONFIG.waveDelay) {
+      this.startWave();
       return;
     }
 
+    // 生成当前波的敌人
     if (this.enemiesSpawned >= this.totalEnemies) {
-      if (this.enemiesKilled >= this.totalEnemies) {
-        this.waveComplete = true;
-        this.waveTimer = 0;
-      }
+      this.waveComplete = true;
       return;
     }
 

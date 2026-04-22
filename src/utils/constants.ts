@@ -110,11 +110,11 @@ export const WEAPON_CONFIGS: Record<WeaponKind, {
 };
 
 export const WAVE_CONFIG = {
-  baseEnemies: 3,
-  enemyIncrement: 2,
-  spawnInterval: 1500,
-  minSpawnInterval: 400,
-  waveDelay: 3000,
+  baseEnemies: 10,
+  enemyIncrement: 4,
+  spawnInterval: 800,
+  minSpawnInterval: 200,
+  waveDelay: 20000,
 };
 
 export const COLORS = {
